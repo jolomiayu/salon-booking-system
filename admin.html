@@ -15,6 +15,11 @@
       text-align: center;
     }
 
+    #controls {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
     #loading {
       text-align: center;
       font-weight: bold;
@@ -47,12 +52,13 @@
     }
 
     button {
-      background: red;
+      background: #ff4d6d;
       color: white;
       border: none;
-      padding: 6px 10px;
+      padding: 8px 12px;
       cursor: pointer;
       border-radius: 4px;
+      margin: 5px;
     }
 
     button:hover {
@@ -65,7 +71,12 @@
 
 <h2>Bookings Dashboard 📋</h2>
 
-<p id="loading">Loading bookings...</p>
+<div id="controls">
+  <button onclick="login()">Login</button>
+  <button onclick="logout()">Logout</button>
+</div>
+
+<p id="loading">🔒 Please login</p>
 <p id="message"></p>
 
 <table>
@@ -83,19 +94,104 @@
 <script>
 const API_BASE = "https://5vk6kp6mj5.execute-api.eu-west-1.amazonaws.com";
 
+const CLIENT_ID = "2ak7thp4f7bdubaftuhqkb6fe4";
+const DOMAIN = "https://eu-west-19adukb2qm.auth.eu-west-1.amazoncognito.com";
+const REDIRECT_URI = "http://localhost:8000/admin.html";
+
+let accessToken = null;
+
+
+// ===== GET CODE FROM URL =====
+function getCode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("code");
+}
+
+
+// ===== EXCHANGE CODE FOR TOKEN =====
+async function getToken(code) {
+  try {
+    const res = await fetch(DOMAIN + "/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: CLIENT_ID,
+        code: code,
+        redirect_uri: REDIRECT_URI
+      })
+    });
+
+    const data = await res.json();
+
+    // ✅ IMPORTANT FIX (use ID TOKEN)
+    accessToken = data.id_token;
+
+    // save token
+    localStorage.setItem("token", accessToken);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+
+// ===== LOGIN =====
+function login() {
+  window.location.href =
+    DOMAIN +
+    "/login?response_type=code&client_id=" +
+    CLIENT_ID +
+    "&redirect_uri=" +
+    encodeURIComponent(REDIRECT_URI);
+}
+
+
+// ===== LOGOUT =====
+function logout() {
+  localStorage.removeItem("token");
+
+  window.location.href =
+    DOMAIN +
+    "/logout?client_id=" +
+    CLIENT_ID +
+    "&logout_uri=" +
+    encodeURIComponent(REDIRECT_URI);
+}
+
+
+// ===== LOAD BOOKINGS =====
 async function loadBookings() {
   const loading = document.getElementById("loading");
   const tableBody = document.getElementById("tableBody");
 
-  loading.style.display = "block";
+  loading.innerText = "Loading bookings...";
+  tableBody.innerHTML = "";
 
   try {
-    const res = await fetch(API_BASE + "/bookings");
+    const res = await fetch(API_BASE + "/bookings", {
+      headers: {
+        Authorization: "Bearer " + accessToken
+      }
+    });
+
+    if (res.status === 401) {
+      loading.innerText = "❌ Unauthorized. Login again.";
+      return;
+    }
+
     const data = await res.json();
 
-    tableBody.innerHTML = "";
+    if (!data.length) {
+      loading.innerText = "No bookings yet.";
+      return;
+    }
 
-    data.forEach(function(item) {
+    loading.style.display = "none";
+
+    data.forEach(item => {
       const row = document.createElement("tr");
 
       row.innerHTML =
@@ -104,7 +200,7 @@ async function loadBookings() {
         "<td>" + (item.date || "") + "</td>" +
         "<td><button>Delete</button></td>";
 
-      row.querySelector("button").addEventListener("click", function() {
+      row.querySelector("button").addEventListener("click", () => {
         deleteBooking(item.bookingId);
       });
 
@@ -112,34 +208,56 @@ async function loadBookings() {
     });
 
   } catch (err) {
-    console.error("Load error:", err);
+    console.error(err);
+    loading.innerText = "Error loading bookings";
   }
-
-  loading.style.display = "none";
 }
 
+
+// ===== DELETE =====
 async function deleteBooking(id) {
-  if (!confirm("Are you sure you want to delete this booking?")) return;
+  if (!confirm("Delete booking?")) return;
 
-  try {
-    await fetch(API_BASE + "/booking", {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ bookingId: id })
-    });
+  await fetch(API_BASE + "/booking", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + accessToken
+    },
+    body: JSON.stringify({ bookingId: id })
+  });
 
-    document.getElementById("message").innerText = "✅ Booking deleted successfully";
+  document.getElementById("message").innerText = "Deleted!";
+  loadBookings();
+}
 
+
+// ===== INIT =====
+async function init() {
+
+  // check saved token first
+  const savedToken = localStorage.getItem("token");
+  if (savedToken) {
+    accessToken = savedToken;
     loadBookings();
+    return;
+  }
 
-  } catch (err) {
-    console.error("Delete error:", err);
+  const code = getCode();
+
+  if (!code) {
+    document.getElementById("loading").innerText = "🔒 Please login";
+    return;
+  }
+
+  await getToken(code);
+
+  if (accessToken) {
+    loadBookings();
   }
 }
 
-loadBookings();
+init();
 </script>
 
 </body>

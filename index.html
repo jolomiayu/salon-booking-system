@@ -1,119 +1,133 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
   <title>Karrie Beauty Hub</title>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f7f7f7;
+      font-family: Arial;
+      background: #f5f5f5;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
     }
 
-    .container {
+    .card {
       background: white;
-      padding: 30px;
-      border-radius: 10px;
+      padding: 25px;
+      border-radius: 12px;
       width: 320px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
     }
 
-    h2 {
-      text-align: center;
-      color: #333;
+    h3 {
+      margin-bottom: 15px;
     }
 
     input, select {
       width: 100%;
       padding: 10px;
       margin: 10px 0;
-      border-radius: 5px;
+      border-radius: 6px;
       border: 1px solid #ccc;
     }
 
     button {
-      width: 100%;
-      padding: 12px;
       background: #ff4d6d;
       color: white;
       border: none;
-      border-radius: 5px;
-      font-weight: bold;
+      padding: 12px;
+      width: 100%;
       cursor: pointer;
+      border-radius: 6px;
+      font-weight: bold;
     }
 
     button:hover {
-      background: #e63950;
+      background: #e63956;
     }
 
-    #response {
-      text-align: center;
-      margin-top: 15px;
+    #msg {
+      margin-top: 12px;
       font-weight: bold;
-      color: green;
     }
   </style>
 </head>
 
 <body>
 
-<div class="container">
-  <h2>Karrie Beauty Hub 💇🔥🏽‍♀️</h2>
+<div class="card">
+  <h3>Karrie Beauty Hub 💇‍♀️🔥</h3>
 
-  <form id="bookingForm">
-    <input type="text" id="name" placeholder="Your Name" required>
+  <input id="name" placeholder="Your Name">
 
-    <select id="service">
-      <option value="">Select Service</option>
-      <option value="Braiding">Braiding</option>
-      <option value="Frontal Installation">Frontal Installation</option>
-      <option value="Facial">Facial</option>
-      <option value="Pedicure">Pedicure</option>
-    </select>
+  <select id="service">
+    <option value="">Select Service</option>
+    <option>Hair Styling</option>
+    <option>Makeup</option>
+    <option>Braiding</option>
+  </select>
 
-    <input type="date" id="date" required>
+  <input id="date" type="date">
 
-    <button type="submit">Book Appointment</button>
-  </form>
+  <button onclick="book()">Book Appointment</button>
 
-  <p id="response"></p>
+  <p id="msg"></p>
 </div>
 
 <script>
-document.getElementById("bookingForm").addEventListener("submit", async function(e) {
-  e.preventDefault();
+const API = "https://5vk6kp6mj5.execute-api.eu-west-1.amazonaws.com";
 
-  const data = {
-    name: document.getElementById("name").value,
-    service: document.getElementById("service").value,
-    date: document.getElementById("date").value
-  };
+async function book() {
+  const name = document.getElementById("name").value;
+  const service = document.getElementById("service").value;
+  const date = document.getElementById("date").value;
+  const msg = document.getElementById("msg");
+
+  // validation
+  if (!name || !service || !date) {
+    msg.innerText = "❌ Please fill all fields";
+    msg.style.color = "red";
+    return;
+  }
+
+  msg.innerText = "⏳ Booking...";
+  msg.style.color = "black";
 
   try {
-    const res = await fetch("https://5vk6kp6mj5.execute-api.eu-west-1.amazonaws.com/book", {
+    const res = await fetch(API + "/book", {
       method: "POST",
-      mode: "cors",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ name, service, date })
     });
 
-    const result = await res.json();
+    const data = await res.json();
 
-    document.getElementById("response").innerText = "✅ Booking successful!";
-    
-    document.getElementById("bookingForm").reset();
+    if (!res.ok) {
+      msg.innerText = "❌ " + (data.message || "Booking failed");
+      msg.style.color = "red";
+      return;
+    }
 
-  } catch (error) {
-    console.error(error);
-    document.getElementById("response").innerText = "❌ Error booking. Try again.";
+    msg.innerText = "✅ Booking successful!";
+    msg.style.color = "green";
+
+    // clear form
+    document.getElementById("name").value = "";
+    document.getElementById("service").value = "";
+    document.getElementById("date").value = "";
+
+  } catch (err) {
+    console.error(err);
+    msg.innerText = "❌ Network error";
+    msg.style.color = "red";
   }
-});
+}
 </script>
 
 </body>
